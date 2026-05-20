@@ -1,0 +1,63 @@
+{
+  "api_keys": {
+    "helius_api_key": "f2ff4683-2727-4a42-91b7-2371e0bbe928"
+  },
+  "wallet": {
+    "private_key": ""
+  },
+  "trading": {
+    "buy_amount_sol": 0.05,
+    "slippage_bps": 1000,
+    "max_concurrent_positions": 5,
+    "daily_loss_limit_sol": 1,
+    "dry_run": true
+  },
+  "sol_price": {
+    "cache_ttl_minutes": 15
+  },
+  "filters": {
+    "min_market_cap_usd": 750,
+    "max_market_cap_usd": 6000,
+    "max_bonding_curve_progress_pct": 15,
+    "max_dev_buy_pct": 15,
+    "min_description_length": 0,
+    "block_bundled_launches": true,
+    "observation_window_seconds": 30,
+    "min_buy_volume_sol": 4,
+    "min_unique_buyers": 18,
+    "max_sell_buy_ratio": 0.8,
+    "keyword_blocklist": [
+      "elon",
+      "trump",
+      "safe",
+      "moon",
+      "100x",
+      "rug",
+      "chad",
+      "wojak",
+      "bonk",
+      "floki"
+    ]
+  },
+  "take_profit": {
+    "tp1_pct": 50,
+    "tp1_sell_pct": 30,
+    "tp2_pct": 100,
+    "tp2_sell_pct": 40,
+    "tp3_pct": 400,
+    "tp3_sell_pct": 20,
+    "moon_bag_pct": 10,
+    "moon_bag_trailing_stop_pct": 30
+  },
+  "stop_loss": {
+    "hard_stop_pct": 50,
+    "time_stop_seconds": 600,
+    "volume_stop_zero_seconds": 60
+  },
+  "early_buy_trigger": {
+    "min_buys": 5,
+    "min_buy_volume_sol": 1.0,
+    "min_unique_buyers": 5,
+    "max_sell_buy_ratio": 0.6
+  }
+}

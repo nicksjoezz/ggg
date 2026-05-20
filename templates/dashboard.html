@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>PumpSniper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#05080f;
+  --s1:#0a0f1c;
+  --s2:#0f1626;
+  --border:#1a2236;
+  --border2:#243047;
+  --green:#00ff88;
+  --green-d:#00c266;
+  --green-dim:#00ff8818;
+  --green-glow:#00ff8808;
+  --red:#ff3b6b;
+  --red-dim:#ff3b6b14;
+  --amber:#ffb930;
+  --amber-dim:#ffb93014;
+  --blue:#4d9fff;
+  --purple:#9b6dff;
+  --text:#e8f0ff;
+  --text2:#8899bb;
+  --muted:#445577;
+  --mono:'JetBrains Mono',monospace;
+  --sans:'Syne',sans-serif;
+  --r:10px;
+}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex;flex-direction:column}
+
+/* noise overlay */
+body::after{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");pointer-events:none;z-index:999;opacity:0.4}
+
+/* ── Top nav ── */
+.nav{display:flex;align-items:center;padding:0 20px;height:52px;background:var(--s1);border-bottom:1px solid var(--border);flex-shrink:0;gap:8px;position:relative;z-index:10}
+.nav-logo{font-family:var(--sans);font-size:17px;font-weight:800;color:var(--green);letter-spacing:-0.5px;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.nav-logo svg{flex-shrink:0}
+.nav-links{display:flex;gap:2px;margin-left:24px}
+.nav-link{font-size:12px;font-weight:600;padding:6px 14px;border-radius:6px;color:var(--text2);text-decoration:none;transition:.15s;letter-spacing:.3px}
+.nav-link:hover{color:var(--text);background:var(--s2)}
+.nav-link.active{color:var(--green);background:var(--green-dim)}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.sol-badge{font-family:var(--mono);font-size:11px;color:var(--text2);padding:5px 11px;border:1px solid var(--border2);border-radius:6px;white-space:nowrap}
+.sol-badge b{color:var(--green)}
+.ws-dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:.3s}
+.ws-dot.on{background:var(--green);box-shadow:0 0 6px var(--green);animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
+.btn{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;padding:7px 16px;border-radius:7px;border:1px solid;cursor:pointer;transition:.15s;white-space:nowrap}
+.btn-start{background:var(--green-dim);border-color:var(--green);color:var(--green)}
+.btn-start:hover{background:var(--green);color:var(--bg)}
+.btn-stop{background:var(--red-dim);border-color:var(--red);color:var(--red)}
+.btn-stop:hover{background:var(--red);color:#fff}
+.dry-chip{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:1px;padding:3px 8px;border-radius:4px;background:var(--amber-dim);border:1px solid var(--amber);color:var(--amber)}
+
+/* ── Body layout ── */
+.body{display:flex;flex:1;overflow:hidden}
+
+/* ── Sidebar ── */
+.sidebar{width:260px;flex-shrink:0;border-right:1px solid var(--border);background:var(--s1);display:flex;flex-direction:column;overflow-y:auto;padding:16px 0}
+
+.sidebar-section{padding:0 12px;margin-bottom:20px}
+.sidebar-label{font-size:9px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;padding:0 8px;margin-bottom:8px}
+
+.stat-tile{background:var(--s2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:6px;position:relative;overflow:hidden}
+.stat-tile::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.stat-tile.g::before{background:linear-gradient(90deg,var(--green),transparent)}
+.stat-tile.r::before{background:linear-gradient(90deg,var(--red),transparent)}
+.stat-tile.a::before{background:linear-gradient(90deg,var(--amber),transparent)}
+.stat-tile.b::before{background:linear-gradient(90deg,var(--blue),transparent)}
+.stat-tile.p::before{background:linear-gradient(90deg,var(--purple),transparent)}
+.tile-label{font-size:9px;font-weight:600;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:5px}
+.tile-value{font-family:var(--mono);font-size:22px;font-weight:700;line-height:1}
+.tile-value.g{color:var(--green)}
+.tile-value.r{color:var(--red)}
+.tile-value.a{color:var(--amber)}
+.tile-value.b{color:var(--blue)}
+.tile-value.p{color:var(--purple)}
+.tile-sub{font-size:10px;color:var(--muted);margin-top:4px;font-family:var(--mono)}
+
+/* rejection bars */
+.rej-row{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;margin-bottom:2px}
+.rej-row:hover{background:var(--s2)}
+.rej-label{font-size:10px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rej-bar-wrap{width:50px;height:3px;background:var(--border2);border-radius:2px;flex-shrink:0}
+.rej-bar{height:100%;background:var(--amber);border-radius:2px;transition:width .4s}
+.rej-count{font-family:var(--mono);font-size:9px;color:var(--muted);width:22px;text-align:right;flex-shrink:0}
+
+/* uptime */
+.uptime-display{font-family:var(--mono);font-size:28px;font-weight:700;color:var(--text);letter-spacing:2px;padding:4px 8px}
+.status-row{display:flex;align-items:center;gap:8px;padding:8px}
+.status-text{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:1px;color:var(--muted)}
+.status-text.running{color:var(--green)}
+
+/* ── Main content ── */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.main-content{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+
+/* ── Error banner ── */
+.error-banner{background:#ff3b6b0a;border:1px solid var(--red);border-radius:var(--r);padding:12px 16px;font-size:12px;color:var(--red);display:flex;align-items:center;gap:10px}
+.error-banner svg{flex-shrink:0}
+
+/* ── Panel ── */
+.panel{background:var(--s1);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;flex-shrink:0}
+.panel-head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--s2)}
+.panel-title{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2)}
+.panel-badge{font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:4px}
+.badge-g{background:var(--green-dim);border:1px solid var(--green-d);color:var(--green)}
+.badge-a{background:var(--amber-dim);border:1px solid #7a5a10;color:var(--amber)}
+
+/* ── Table ── */
+.tbl{width:100%;border-collapse:collapse;font-size:11px}
+.tbl th{font-family:var(--mono);font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);background:var(--s2)}
+.tbl td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:var(--s2);color:var(--text)}
+.mono{font-family:var(--mono)}
+.g{color:var(--green)}
+.r{color:var(--red)}
+.a{color:var(--amber)}
+.b{color:var(--blue)}
+
+.tag{display:inline-block;font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.5px;padding:2px 6px;border-radius:3px;text-transform:uppercase;background:var(--s2);border:1px solid var(--border);color:var(--muted)}
+.tag-buy{background:var(--green-dim);border:1px solid var(--green-d);color:var(--green)}
+.tag-sell{background:var(--red-dim);border:1px solid #7a1a30;color:var(--red)}
+.tag-fail{background:var(--amber-dim);border:1px solid #7a5a10;color:var(--amber)}
+.tag-dry{background:#4d9fff14;border:1px solid #1a3a6a;color:var(--blue)}
+
+.empty{padding:24px;text-align:center;color:var(--muted);font-family:var(--mono);font-size:11px}
+
+/* ── PnL banner ── */
+.pnl-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border-radius:var(--r);overflow:hidden;flex-shrink:0}
+.pnl-cell{background:var(--s1);padding:14px 16px}
+.pnl-cell-label{font-size:9px;font-weight:600;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:5px}
+.pnl-cell-val{font-family:var(--mono);font-size:20px;font-weight:700}
+
+/* scrollbars */
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* ── Responsive ── */
+@media(max-width:900px){
+  .sidebar{width:220px}
+  .pnl-bar{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:680px){
+  .sidebar{display:none}
+  .nav-links{display:none}
+  .pnl-bar{grid-template-columns:repeat(2,1fr)}
+  .sol-badge{display:none}
+}
+@media(max-width:420px){
+  .pnl-bar{grid-template-columns:1fr 1fr}
+  .nav-logo span{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="nav">
+  <div class="nav-logo">
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+      <path d="M11 2L3 7v8l8 5 8-5V7L11 2z" stroke="#00ff88" stroke-width="1.5" fill="#00ff8808"/>
+      <path d="M11 6l-4 2.5v5L11 16l4-2.5v-5L11 6z" fill="#00ff88" opacity=".7"/>
+    </svg>
+    <span>PumpSniper</span>
+  </div>
+  <div class="nav-links">
+    <a class="nav-link active" href="/">Dashboard</a>
+    <a class="nav-link" href="/settings">Settings</a>
+  </div>
+  <div class="nav-right">
+    <div class="sol-badge">SOL <b id="sol-val">—</b></div>
+    <div id="dry-chip" class="dry-chip" style="display:none">DRY RUN</div>
+    <div class="ws-dot" id="ws-dot" title="WebSocket status"></div>
+    <button class="btn btn-start" id="btn-start" onclick="startBot()">▶ Start</button>
+    <button class="btn btn-stop"  id="btn-stop"  onclick="stopBot()" style="display:none">■ Stop</button>
+  </div>
+</nav>
+
+<!-- Body -->
+<div class="body">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <!-- Status -->
+    <div class="sidebar-section">
+      <div class="status-row">
+        <div class="ws-dot" id="sb-dot"></div>
+        <div class="status-text" id="sb-status">STOPPED</div>
+      </div>
+      <div class="uptime-display" id="sb-uptime">00:00:00</div>
+    </div>
+
+    <!-- Stats -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">Overview</div>
+      <div class="stat-tile g">
+        <div class="tile-label">Tokens Seen</div>
+        <div class="tile-value g" id="s-seen">0</div>
+        <div class="tile-sub" id="s-passrate">0% pass rate</div>
+      </div>
+      <div class="stat-tile a">
+        <div class="tile-label">Open Positions</div>
+        <div class="tile-value a" id="s-open">0</div>
+        <div class="tile-sub" id="s-buys">0 total buys</div>
+      </div>
+      <div class="stat-tile b">
+        <div class="tile-label">Win Rate</div>
+        <div class="tile-value b" id="s-wr">—</div>
+        <div class="tile-sub" id="s-sells">0 total sells</div>
+      </div>
+      <div class="stat-tile" id="pnl-tile">
+        <div class="tile-label">Total PnL</div>
+        <div class="tile-value" id="s-pnl">$0.00</div>
+        <div class="tile-sub" id="s-loss">Daily loss: 0 SOL</div>
+      </div>
+    </div>
+
+    <!-- Rejection breakdown -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">Rejections <span id="rej-total" style="color:var(--amber);font-size:9px;margin-left:4px"></span></div>
+      <div id="rej-list"><div style="padding:8px;font-size:10px;color:var(--muted)">No rejections yet</div></div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="main-content">
+
+      <!-- Error banner -->
+      <div class="error-banner" id="error-banner" style="display:none">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#ff3b6b" stroke-width="1.2"/><path d="M7 4v3.5M7 9.5v.5" stroke="#ff3b6b" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <span id="error-text"></span>
+      </div>
+
+      <!-- PnL bar -->
+      <div class="pnl-bar">
+        <div class="pnl-cell">
+          <div class="pnl-cell-label">Total PnL</div>
+          <div class="pnl-cell-val" id="b-pnl" style="color:var(--green)">$0.00</div>
+        </div>
+        <div class="pnl-cell">
+          <div class="pnl-cell-label">Daily SOL P&amp;L</div>
+          <div class="pnl-cell-val" id="b-sol" style="color:var(--text)">0.0000</div>
+        </div>
+        <div class="pnl-cell">
+          <div class="pnl-cell-label">Tokens Passed</div>
+          <div class="pnl-cell-val" id="b-passed" style="color:var(--blue)">0</div>
+        </div>
+        <div class="pnl-cell">
+          <div class="pnl-cell-label">Rejected</div>
+          <div class="pnl-cell-val" id="b-rejected" style="color:var(--amber)">0</div>
+        </div>
+      </div>
+
+      <!-- Open positions -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">Open Positions</div>
+          <div class="panel-badge badge-a" id="pos-badge">0</div>
+        </div>
+        <table class="tbl">
+          <thead><tr>
+            <th>Token</th><th>Mint</th><th>Entry</th><th>PnL</th><th>Realized</th><th>TPs</th><th>Age</th>
+          </tr></thead>
+          <tbody id="pos-tbody"><tr><td colspan="7" class="empty">No open positions</td></tr></tbody>
+        </table>
+      </div>
+
+      <!-- Trade log -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">Trade Log</div>
+          <div class="panel-badge badge-g" id="log-badge">0</div>
+        </div>
+        <table class="tbl">
+          <thead><tr>
+            <th>Time</th><th>Action</th><th>Token</th><th>Amount</th><th>Reason</th><th>Mode</th>
+          </tr></thead>
+          <tbody id="log-tbody"><tr><td colspan="6" class="empty">Waiting for activity…</td></tr></tbody>
+        </table>
+      </div>
+
+    </div>
+  </main>
+
+</div>
+
+<script>
+async function fetchAll() {
+  try {
+    const [stats, pos, trades, sp] = await Promise.all([
+      fetch('/api/stats').then(r=>r.json()),
+      fetch('/api/positions').then(r=>r.json()),
+      fetch('/api/trades?limit=60').then(r=>r.json()),
+      fetch('/api/sol-price').then(r=>r.json()),
+    ]);
+    render(stats, pos, trades, sp);
+  } catch(e) { console.error(e); }
+}
+
+function render(s, pos, trades, sp) {
+  const running = s.running;
+
+  // Nav
+  document.getElementById('btn-start').style.display = running ? 'none' : '';
+  document.getElementById('btn-stop').style.display  = running ? '' : 'none';
+  document.getElementById('dry-chip').style.display  = (running && s.dry_run) ? '' : 'none';
+
+  // WS dot
+  const wsOn = s.ws_connected;
+  document.getElementById('ws-dot').className = 'ws-dot' + (wsOn ? ' on' : '');
+
+  // Error
+  const eb = document.getElementById('error-banner');
+  if (s.last_error) {
+    eb.style.display = 'flex';
+    document.getElementById('error-text').textContent = s.last_error;
+  } else { eb.style.display = 'none'; }
+
+  // SOL price
+  if (sp.cached_price) document.getElementById('sol-val').textContent = '$' + sp.cached_price.toFixed(2);
+
+  // Sidebar stats
+  const sbDot = document.getElementById('sb-dot');
+  sbDot.className = 'ws-dot' + (running ? ' on' : '');
+  document.getElementById('sb-status').textContent = running ? 'RUNNING' : 'STOPPED';
+  document.getElementById('sb-status').className = 'status-text' + (running ? ' running' : '');
+  document.getElementById('sb-uptime').textContent = s.uptime || '00:00:00';
+
+  document.getElementById('s-seen').textContent = s.tokens_seen;
+  document.getElementById('s-passrate').textContent = s.pass_rate_pct + '% pass rate';
+  document.getElementById('s-open').textContent = s.open_positions;
+  document.getElementById('s-buys').textContent = s.total_buys + ' total buys';
+  document.getElementById('s-wr').textContent = s.total_sells > 0 ? s.win_rate_pct + '%' : '—';
+  document.getElementById('s-sells').textContent = s.total_sells + ' sells';
+
+  const pnl = s.total_pnl_usd || 0;
+  const pnlEl = document.getElementById('s-pnl');
+  pnlEl.textContent = (pnl >= 0 ? '+' : '') + '$' + pnl.toFixed(2);
+  pnlEl.className = 'tile-value ' + (pnl >= 0 ? 'g' : 'r');
+  document.getElementById('pnl-tile').className = 'stat-tile ' + (pnl >= 0 ? 'g' : 'r');
+  document.getElementById('s-loss').textContent = 'Daily loss: ' + (s.daily_loss_sol||0) + ' SOL';
+
+  // PnL bar
+  document.getElementById('b-pnl').textContent = (pnl >= 0 ? '+' : '') + '$' + pnl.toFixed(2);
+  document.getElementById('b-pnl').style.color = pnl >= 0 ? 'var(--green)' : 'var(--red)';
+  const solPnl = s.daily_pnl_sol || 0;
+  document.getElementById('b-sol').textContent = (solPnl >= 0 ? '+' : '') + solPnl.toFixed(4);
+  document.getElementById('b-sol').style.color = solPnl >= 0 ? 'var(--green)' : 'var(--red)';
+  document.getElementById('b-passed').textContent = s.tokens_passed || 0;
+  document.getElementById('b-rejected').textContent = s.tokens_rejected || 0;
+
+  // Rejections
+  const reasons = s.rejection_reasons || {};
+  const entries = Object.entries(reasons).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('rej-total').textContent = s.tokens_rejected > 0 ? s.tokens_rejected : '';
+  const rejList = document.getElementById('rej-list');
+  if (!entries.length) {
+    rejList.innerHTML = '<div style="padding:8px;font-size:10px;color:var(--muted)">No rejections yet</div>';
+  } else {
+    const max = entries[0][1];
+    rejList.innerHTML = entries.slice(0,8).map(([label,count]) => `
+      <div class="rej-row">
+        <div class="rej-label" title="${label}">${label}</div>
+        <div class="rej-bar-wrap"><div class="rej-bar" style="width:${Math.round(count/max*100)}%"></div></div>
+        <div class="rej-count">${count}</div>
+      </div>`).join('');
+  }
+
+  // Positions
+  document.getElementById('pos-badge').textContent = pos.length;
+  const posBody = document.getElementById('pos-tbody');
+  if (!pos.length) {
+    posBody.innerHTML = '<tr><td colspan="7" class="empty">No open positions</td></tr>';
+  } else {
+    posBody.innerHTML = pos.map(p => {
+      const age    = Math.round((Date.now()/1000 - p.opened_at)/60);
+      const pct    = p.pnl_pct || 0;
+      const cls    = pct >= 0 ? 'g' : 'r';
+      const sign   = pct >= 0 ? '+' : '';
+      const rpnl   = p.realized_pnl_usd || 0;
+      const rcls   = rpnl >= 0 ? 'g' : 'r';
+      const rsign  = rpnl >= 0 ? '+' : '';
+      const tpBadges = [
+        p.tp1_hit ? '<span class="tag tag-sell" style="margin-right:2px">TP1</span>' : '<span class="tag" style="margin-right:2px;opacity:.3">TP1</span>',
+        p.tp2_hit ? '<span class="tag tag-sell" style="margin-right:2px">TP2</span>' : '<span class="tag" style="margin-right:2px;opacity:.3">TP2</span>',
+        p.tp3_hit ? '<span class="tag tag-sell">TP3</span>'                           : '<span class="tag" style="opacity:.3">TP3</span>',
+      ].join('');
+      return `<tr>
+        <td><b style="color:var(--text)">${p.symbol}</b><br><span style="font-size:9px;color:var(--muted)">${p.name}</span></td>
+        <td class="mono" style="font-size:9px;color:var(--muted)">${p.mint.slice(0,8)}…</td>
+        <td class="mono">${p.entry_sol.toFixed(3)} SOL<br><span style="font-size:9px;color:var(--muted)">${(p.tokens_held||0).toLocaleString(undefined,{maximumFractionDigits:0})} tkn</span></td>
+        <td class="mono ${cls}">${sign}${pct.toFixed(1)}%<br><span style="font-size:9px;color:var(--muted)">$${(p.current_price_usd||0).toFixed(8)}</span></td>
+        <td class="mono ${rcls}">${rsign}$${Math.abs(rpnl).toFixed(2)}</td>
+        <td>${tpBadges}</td>
+        <td style="color:var(--muted)">${age}m</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Trade log
+  document.getElementById('log-badge').textContent = trades.length;
+  const logBody = document.getElementById('log-tbody');
+  if (!trades.length) {
+    logBody.innerHTML = '<tr><td colspan="6" class="empty">Waiting for activity…</td></tr>';
+  } else {
+    logBody.innerHTML = trades.map(t => {
+      const ts = new Date(t.timestamp*1000).toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      const tagCls = t.action==='buy'?'tag-buy':t.action==='sell'?'tag-sell':'tag-fail';
+      const amt = t.sol_amount > 0 ? t.sol_amount.toFixed(3)+' SOL' : '—';
+      const reason = t.reason.length > 38 ? t.reason.slice(0,38)+'…' : t.reason;
+      return `<tr>
+        <td class="mono" style="font-size:9px;color:var(--muted)">${ts}</td>
+        <td><span class="tag ${tagCls}">${t.action}</span></td>
+        <td><b style="color:var(--text)">${t.symbol}</b></td>
+        <td class="mono">${amt}</td>
+        <td style="font-size:10px;color:var(--text2)" title="${t.reason}">${reason}</td>
+        <td>${t.dry_run?'<span class="tag tag-dry">dry</span>':'<span class="tag tag-buy">live</span>'}</td>
+      </tr>`;
+    }).join('');
+  }
+}
+
+async function startBot() {
+  const r = await fetch('/api/bot/start',{method:'POST'}).then(r=>r.json());
+  if (!r.ok) alert(r.message);
+  setTimeout(fetchAll, 800);
+}
+async function stopBot() {
+  await fetch('/api/bot/stop',{method:'POST'});
+  setTimeout(fetchAll, 500);
+}
+
+fetchAll();
+setInterval(fetchAll, 2000);
+</script>
+</body>
+</html>

@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>PumpSniper — Settings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#05080f;
+  --s1:#0a0f1c;
+  --s2:#0f1626;
+  --border:#1a2236;
+  --border2:#243047;
+  --green:#00ff88;
+  --green-d:#00c266;
+  --green-dim:#00ff8818;
+  --green-glow:#00ff8808;
+  --red:#ff3b6b;
+  --red-dim:#ff3b6b14;
+  --amber:#ffb930;
+  --amber-dim:#ffb93014;
+  --blue:#4d9fff;
+  --purple:#9b6dff;
+  --text:#e8f0ff;
+  --text2:#8899bb;
+  --muted:#445577;
+  --mono:'JetBrains Mono',monospace;
+  --sans:'Syne',sans-serif;
+  --r:10px;
+}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex;flex-direction:column}
+body::after{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");pointer-events:none;z-index:999;opacity:0.4}
+
+/* Nav */
+.nav{display:flex;align-items:center;padding:0 20px;height:52px;background:var(--s1);border-bottom:1px solid var(--border);flex-shrink:0;gap:8px;position:relative;z-index:10}
+.nav-logo{font-family:var(--sans);font-size:17px;font-weight:800;color:var(--green);letter-spacing:-0.5px;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.nav-links{display:flex;gap:2px;margin-left:24px}
+.nav-link{font-size:12px;font-weight:600;padding:6px 14px;border-radius:6px;color:var(--text2);text-decoration:none;transition:.15s;letter-spacing:.3px}
+.nav-link:hover{color:var(--text);background:var(--s2)}
+.nav-link.active{color:var(--green);background:var(--green-dim)}
+.nav-right{margin-left:auto;display:flex;gap:10px}
+.btn{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;padding:7px 16px;border-radius:7px;border:1px solid;cursor:pointer;transition:.15s;white-space:nowrap}
+.btn-save{background:var(--green-dim);border-color:var(--green);color:var(--green)}
+.btn-save:hover{background:var(--green);color:var(--bg)}
+.btn-reset{background:transparent;border-color:var(--muted);color:var(--muted)}
+.btn-reset:hover{border-color:var(--text2);color:var(--text2)}
+.ws-dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:.3s}
+.ws-dot.on{background:var(--green);box-shadow:0 0 6px var(--green);animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
+
+/* Layout */
+.body{display:flex;flex:1;overflow:hidden}
+.sidebar{width:220px;flex-shrink:0;border-right:1px solid var(--border);background:var(--s1);display:flex;flex-direction:column;padding:20px 0}
+.sb-nav-item{display:flex;align-items:center;gap:10px;padding:9px 20px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;border-left:2px solid transparent;transition:.15s;text-decoration:none}
+.sb-nav-item:hover{color:var(--text);background:var(--s2)}
+.sb-nav-item.active{color:var(--green);border-left-color:var(--green);background:var(--green-glow)}
+.sb-icon{font-size:13px;width:16px;text-align:center}
+.sb-section-label{font-size:9px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;padding:16px 20px 6px;margin-top:8px}
+
+.main{flex:1;overflow-y:auto;padding:0}
+
+/* Settings section */
+.settings-section{padding:20px 24px;border-bottom:1px solid var(--border);display:none}
+.settings-section.active{display:block}
+
+.section-head{margin-bottom:20px}
+.section-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:4px}
+.section-desc{font-size:12px;color:var(--text2)}
+
+/* Field grid */
+.field-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px}
+.field-grid.two{grid-template-columns:repeat(2,1fr)}
+.field-grid.four{grid-template-columns:repeat(4,1fr)}
+.field-grid.one{grid-template-columns:1fr}
+.field{display:flex;flex-direction:column;gap:5px}
+.field.span2{grid-column:span 2}
+.field.span3{grid-column:span 3}
+.field.spanall{grid-column:1/-1}
+
+label{font-size:11px;font-weight:600;color:var(--text2);letter-spacing:.3px}
+.hint{font-size:10px;color:var(--muted);margin-top:2px}
+
+input[type=text],input[type=number],input[type=password]{
+  background:var(--bg);border:1px solid var(--border2);border-radius:7px;
+  color:var(--text);font-family:var(--mono);font-size:12px;
+  padding:9px 12px;width:100%;outline:none;transition:.15s;
+}
+input:focus{border-color:var(--green-d);box-shadow:0 0 0 3px var(--green-dim)}
+input::placeholder{color:var(--muted)}
+input[type=number]{-moz-appearance:textfield}
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
+
+/* Toggle */
+.toggle-row{display:flex;align-items:center;gap:10px;padding:10px 0}
+.toggle{position:relative;width:40px;height:21px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.tslider{position:absolute;inset:0;background:var(--s2);border:1px solid var(--border2);border-radius:21px;cursor:pointer;transition:.2s}
+.tslider::before{content:'';position:absolute;width:13px;height:13px;left:3px;top:3px;background:var(--muted);border-radius:50%;transition:.2s}
+.toggle input:checked+.tslider{border-color:var(--green)}
+.toggle input:checked+.tslider::before{background:var(--green);transform:translateX(19px);box-shadow:0 0 6px var(--green)}
+.toggle-label{font-size:12px;color:var(--text2)}
+.toggle-label b{color:var(--text)}
+
+/* TP/SL cards */
+.tp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}
+.tp-card{background:var(--s2);border:1px solid var(--border);border-radius:var(--r);padding:14px;position:relative;overflow:hidden}
+.tp-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.tp-g::before{background:var(--green)}
+.tp-b::before{background:var(--blue)}
+.tp-a::before{background:var(--amber)}
+.tp-r::before{background:var(--red)}
+.tp-p::before{background:var(--purple)}
+.tp-label{font-size:9px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:12px}
+.tp-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.tp-row:last-child{margin-bottom:0}
+.tp-row-label{font-size:10px;color:var(--text2);width:55px;flex-shrink:0}
+.tp-suffix{font-family:var(--mono);font-size:10px;color:var(--muted);width:16px;flex-shrink:0}
+
+/* Keyword tags */
+.tag-wrap{background:var(--bg);border:1px solid var(--border2);border-radius:7px;padding:6px 10px;display:flex;flex-wrap:wrap;gap:5px;min-height:40px;cursor:text;transition:.15s}
+.tag-wrap:focus-within{border-color:var(--green-d);box-shadow:0 0 0 3px var(--green-dim)}
+.kw-tag{display:inline-flex;align-items:center;gap:4px;background:var(--s2);border:1px solid var(--border2);border-radius:4px;padding:2px 8px;font-family:var(--mono);font-size:10px;color:var(--text2)}
+.kw-tag button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;line-height:1;padding:0;transition:.15s}
+.kw-tag button:hover{color:var(--red)}
+.kw-input{background:none;border:none;outline:none;color:var(--text);font-family:var(--mono);font-size:12px;min-width:90px;flex:1;padding:1px 0}
+
+/* Separator */
+.sep{height:1px;background:var(--border);margin:20px 0}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;z-index:9999;background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:13px 18px;display:flex;align-items:center;gap:10px;font-size:12px;box-shadow:0 8px 40px #00000070;transform:translateY(80px);opacity:0;transition:transform .3s ease,opacity .3s ease;pointer-events:none;max-width:320px}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.success{border-color:var(--green-d)}
+.toast.error{border-color:var(--red)}
+.toast-icon{font-size:16px;flex-shrink:0}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* Responsive */
+@media(max-width:680px){
+  .sidebar{display:none}
+  .field-grid{grid-template-columns:1fr 1fr}
+  .field-grid.four{grid-template-columns:1fr 1fr}
+  .tp-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:420px){
+  .field-grid,.field-grid.two,.field-grid.four{grid-template-columns:1fr}
+  .tp-grid{grid-template-columns:1fr}
+  .nav-links{display:none}
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-logo">
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+      <path d="M11 2L3 7v8l8 5 8-5V7L11 2z" stroke="#00ff88" stroke-width="1.5" fill="#00ff8808"/>
+      <path d="M11 6l-4 2.5v5L11 16l4-2.5v-5L11 6z" fill="#00ff88" opacity=".7"/>
+    </svg>
+    PumpSniper
+  </div>
+  <div class="nav-links">
+    <a class="nav-link" href="/">Dashboard</a>
+    <a class="nav-link active" href="/settings">Settings</a>
+  </div>
+  <div class="nav-right">
+    <div class="ws-dot" id="ws-dot"></div>
+    <button class="btn btn-reset" onclick="loadSettings()">↺ Reset</button>
+    <button class="btn btn-save" onclick="saveSettings()">✓ Save</button>
+  </div>
+</nav>
+
+<div class="body">
+
+  <!-- Sidebar nav -->
+  <aside class="sidebar">
+    <div class="sb-section-label">Configuration</div>
+    <a class="sb-nav-item active" onclick="showSection('api')" href="#">
+      <span class="sb-icon">🔑</span> API Keys
+    </a>
+    <a class="sb-nav-item" onclick="showSection('wallet')" href="#">
+      <span class="sb-icon">👛</span> Wallet
+    </a>
+    <a class="sb-nav-item" onclick="showSection('trading')" href="#">
+      <span class="sb-icon">💰</span> Trading
+    </a>
+    <div class="sb-section-label">Strategy</div>
+    <a class="sb-nav-item" onclick="showSection('filters')" href="#">
+      <span class="sb-icon">🔍</span> Filters
+    </a>
+    <a class="sb-nav-item" onclick="showSection('volume')" href="#">
+      <span class="sb-icon">📊</span> Volume Window
+    </a>
+    <a class="sb-nav-item" onclick="showSection('exits')" href="#">
+      <span class="sb-icon">🎯</span> TP / SL
+    </a>
+  </aside>
+
+  <main class="main">
+
+    <!-- API Keys -->
+    <div class="settings-section active" id="sec-api">
+      <div class="section-head">
+        <div class="section-title">API Keys</div>
+        <div class="section-desc">Stored locally in settings.json — never transmitted anywhere.</div>
+      </div>
+      <div class="field-grid one">
+        <div class="field">
+          <label>Helius API Key</label>
+          <input type="password" id="helius_api_key" placeholder="Paste your Helius API Key here...">
+          <div class="hint">Free tier: 10 RPS, 1M credits/month — get yours at helius.dev</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wallet -->
+    <div class="settings-section" id="sec-wallet">
+      <div class="section-head">
+        <div class="section-title">Wallet</div>
+        <div class="section-desc">Your Solana trading wallet. Only used locally to sign transactions.</div>
+      </div>
+      <div class="field-grid one">
+        <div class="field">
+          <label>Private Key (Base58)</label>
+          <input type="password" id="wallet_private_key" placeholder="Base58 encoded private key from your wallet...">
+          <div class="hint">⚠ Never share this. Stored only in your local settings.json. Used to sign transactions directly through Helius — no third-party ever sees it.</div>
+        </div>
+      </div>
+      <div class="sep"></div>
+      <div class="toggle-row">
+        <label class="toggle"><input type="checkbox" id="dry_run"><span class="tslider"></span></label>
+        <div class="toggle-label"><b>Dry Run Mode</b> — Simulate all trades without spending real SOL. Disable when ready for live trading.</div>
+      </div>
+    </div>
+
+    <!-- Trading -->
+    <div class="settings-section" id="sec-trading">
+      <div class="section-head">
+        <div class="section-title">Trading Parameters</div>
+        <div class="section-desc">Position sizing, fees, and circuit breakers</div>
+      </div>
+      <div class="field-grid four">
+        <div class="field">
+          <label>Buy Amount (SOL)</label>
+          <input type="number" id="buy_amount_sol" step="0.01" min="0.01">
+          <div class="hint">Per snipe. Start small (0.05)</div>
+        </div>
+        <div class="field">
+          <label>Slippage (bps)</label>
+          <input type="number" id="slippage_bps" step="100" min="100">
+          <div class="hint">1000 = 10%. Pump.fun needs 10–15%</div>
+        </div>
+        <div class="field">
+          <label>Max Positions</label>
+          <input type="number" id="max_concurrent_positions" min="1" max="20">
+          <div class="hint">Open at one time</div>
+        </div>
+        <div class="field">
+          <label>Daily Loss Limit (SOL)</label>
+          <input type="number" id="daily_loss_limit_sol" step="0.1" min="0">
+          <div class="hint">Circuit breaker — bot pauses</div>
+        </div>
+        <div class="field">
+          <label>SOL Price Cache (min)</label>
+          <input type="number" id="sol_price_cache_ttl" min="1" max="60">
+          <div class="hint">Cached to minimize API load. 15 min = 96 checks/day.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="settings-section" id="sec-filters">
+      <div class="section-head">
+        <div class="section-title">Token Filters</div>
+        <div class="section-desc">Applied instantly on every new token create event from PumpPortal. Researched from Chainstack + CoinGecko bot guides.</div>
+      </div>
+      <div class="field-grid">
+        <div class="field">
+          <label>Min Market Cap (USD)</label>
+          <input type="number" id="min_market_cap_usd" step="50">
+          <div class="hint">~$750 ≈ 5 SOL. Dev must have skin in game.</div>
+        </div>
+        <div class="field">
+          <label>Max Market Cap (USD)</label>
+          <input type="number" id="max_market_cap_usd" step="100">
+          <div class="hint">~$6,000 ≈ 40 SOL. Already pumped = skip.</div>
+        </div>
+        <div class="field">
+          <label>Max Curve Progress (%)</label>
+          <input type="number" id="max_bonding_curve_progress_pct" min="1" max="100">
+          <div class="hint">Curve graduates at 100% (~85 SOL). Skip if too filled.</div>
+        </div>
+        <div class="field">
+          <label>Max Dev Buy (%)</label>
+          <input type="number" id="max_dev_buy_pct" min="1" max="100">
+          <div class="hint">% of 1B supply dev bought at creation. >5% = dump risk.</div>
+        </div>
+        <div class="field">
+          <label>Min Description Length</label>
+          <input type="number" id="min_description_length" min="0">
+          <div class="hint">Ensures token has basic descriptive metadata.</div>
+        </div>
+      </div>
+      <div class="toggle-row">
+        <label class="toggle"><input type="checkbox" id="block_bundled_launches"><span class="tslider"></span></label>
+        <div class="toggle-label"><b>Block Bundled Launches</b> — Reject tokens where multiple wallets bought in the same block as the mint (coordinated insider sniping)</div>
+      </div>
+      <div class="sep"></div>
+      <div class="field">
+        <label>Keyword Blocklist</label>
+        <div class="tag-wrap" id="kw-wrap" onclick="document.getElementById('kw-input').focus()">
+          <input class="kw-input" id="kw-input" placeholder="Type keyword + Enter to add...">
+        </div>
+        <div class="hint">Token names containing these words are rejected automatically</div>
+      </div>
+    </div>
+
+    <!-- Volume window -->
+    <div class="settings-section" id="sec-volume">
+      <div class="section-head">
+        <div class="section-title">Volume Observation Window</div>
+        <div class="section-desc">After passing initial filters, the bot watches real trade activity before buying. This is the most powerful anti-rug filter. Inspired by Chainstack's bot research — wait for organic activity before committing.</div>
+      </div>
+      <div class="field-grid one">
+        <div class="field">
+          <label>Observation Window (seconds)</label>
+          <input type="number" id="observation_window_seconds" min="5" max="60">
+          <div class="hint">Duration to analyze trade activity before executing. 10s is recommended.</div>
+        </div>
+        <div class="field">
+          <label>Min Buy Volume (SOL)</label>
+          <input type="number" id="min_buy_volume_sol" step="0.1" min="0">
+          <div class="hint">Total SOL bought in window. Identifies market momentum.</div>
+        </div>
+        <div class="field">
+          <label>Min Unique Buyers</label>
+          <input type="number" id="min_unique_buyers" min="1">
+          <div class="hint">Filters out tokens with low organic wallet activity.</div>
+        </div>
+        <div class="field">
+          <label>Max Sell/Buy Ratio</label>
+          <input type="number" id="max_sell_buy_ratio" step="0.05" min="0" max="1">
+          <div class="hint">0.5 = sells can't exceed 50% of buy volume. Dump signal.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TP/SL -->
+    <div class="settings-section" id="sec-exits">
+      <div class="section-head">
+        <div class="section-title">Take Profit &amp; Stop Loss</div>
+        <div class="section-desc">Tiered exit strategy. Sell portions at each TP level, keep a moon bag. Exit engine monitors via PumpPortal trade stream in real-time.</div>
+      </div>
+      <div class="tp-grid">
+        <div class="tp-card tp-g">
+          <div class="tp-label">Take Profit 1</div>
+          <div class="tp-row"><div class="tp-row-label">Trigger</div><input type="number" id="tp1_pct" min="1"><div class="tp-suffix">%</div></div>
+          <div class="tp-row"><div class="tp-row-label">Sell</div><input type="number" id="tp1_sell_pct" min="1" max="100"><div class="tp-suffix">%</div></div>
+        </div>
+        <div class="tp-card tp-b">
+          <div class="tp-label">Take Profit 2</div>
+          <div class="tp-row"><div class="tp-row-label">Trigger</div><input type="number" id="tp2_pct" min="1"><div class="tp-suffix">%</div></div>
+          <div class="tp-row"><div class="tp-row-label">Sell</div><input type="number" id="tp2_sell_pct" min="1" max="100"><div class="tp-suffix">%</div></div>
+        </div>
+        <div class="tp-card tp-a">
+          <div class="tp-label">Take Profit 3</div>
+          <div class="tp-row"><div class="tp-row-label">Trigger</div><input type="number" id="tp3_pct" min="1"><div class="tp-suffix">%</div></div>
+          <div class="tp-row"><div class="tp-row-label">Sell</div><input type="number" id="tp3_sell_pct" min="1" max="100"><div class="tp-suffix">%</div></div>
+        </div>
+        <div class="tp-card tp-r">
+          <div class="tp-label">Stop Loss</div>
+          <div class="tp-row"><div class="tp-row-label">Hard Stop</div><input type="number" id="hard_stop_pct" min="1" max="100"><div class="tp-suffix">%</div></div>
+          <div class="tp-row"><div class="tp-row-label">Time Stop</div><input type="number" id="time_stop_seconds" min="30"><div class="tp-suffix">s</div></div>
+        </div>
+        <div class="tp-card tp-p">
+          <div class="tp-label">Vol Stop</div>
+          <div class="tp-row"><div class="tp-row-label">Zero vol after</div><input type="number" id="volume_stop_zero_seconds" min="10"><div class="tp-suffix">s</div></div>
+          <div class="tp-row"><div class="tp-row-label">Moon Bag</div><input type="number" id="moon_bag_pct" min="0" max="50"><div class="tp-suffix">%</div></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="toast" id="toast">
+  <span class="toast-icon" id="toast-icon"></span>
+  <span id="toast-msg"></span>
+</div>
+
+<script>
+let keywords = [];
+let currentSection = 'api';
+
+function showSection(id) {
+  document.querySelectorAll('.settings-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.sb-nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('sec-'+id).classList.add('active');
+  document.querySelectorAll('.sb-nav-item').forEach(n => {
+    if (n.getAttribute('onclick') && n.getAttribute('onclick').includes("'"+id+"'")) n.classList.add('active');
+  });
+  currentSection = id;
+}
+
+// Keyword tags
+function renderTags() {
+  const wrap = document.getElementById('kw-wrap');
+  wrap.querySelectorAll('.kw-tag').forEach(t => t.remove());
+  const input = document.getElementById('kw-input');
+  keywords.forEach((kw, i) => {
+    const tag = document.createElement('span');
+    tag.className = 'kw-tag';
+    tag.innerHTML = `${kw}<button onclick="removeKw(${i})" title="Remove">×</button>`;
+    wrap.insertBefore(tag, input);
+  });
+}
+function removeKw(i) { keywords.splice(i,1); renderTags(); }
+
+document.getElementById('kw-input').addEventListener('keydown', e => {
+  if ((e.key==='Enter'||e.key===',') && e.target.value.trim()) {
+    e.preventDefault();
+    const kw = e.target.value.trim().replace(/,/g,'').toLowerCase();
+    if (kw && !keywords.includes(kw)) keywords.push(kw);
+    e.target.value = '';
+    renderTags();
+  } else if (e.key==='Backspace' && !e.target.value && keywords.length) {
+    keywords.pop(); renderTags();
+  }
+});
+
+async function loadSettings() {
+  try {
+    const s = await fetch('/api/settings').then(r => r.json());
+    // API Keys
+    set('helius_api_key', s.api_keys?.helius_api_key||'');
+    
+    // Wallet
+    set('wallet_private_key', s.wallet?.private_key||'');
+    setCheck('dry_run', s.trading?.dry_run??true);
+    // Trading
+    set('buy_amount_sol', s.trading?.buy_amount_sol??0.05);
+    set('slippage_bps', s.trading?.slippage_bps??1000);
+    set('max_concurrent_positions', s.trading?.max_concurrent_positions??5);
+    set('daily_loss_limit_sol', s.trading?.daily_loss_limit_sol??1.0);
+    set('sol_price_cache_ttl', s.sol_price?.cache_ttl_minutes??15);
+    // Filters
+    set('min_market_cap_usd', s.filters?.min_market_cap_usd??750);
+    set('max_market_cap_usd', s.filters?.max_market_cap_usd??6000);
+    set('max_bonding_curve_progress_pct', s.filters?.max_bonding_curve_progress_pct??15);
+    set('max_dev_buy_pct', s.filters?.max_dev_buy_pct??5);
+    set('min_description_length', s.filters?.min_description_length??20);
+    setCheck('block_bundled_launches', s.filters?.block_bundled_launches??true);
+    keywords = s.filters?.keyword_blocklist||[];
+    renderTags();
+    // Volume
+    set('observation_window_seconds', s.filters?.observation_window_seconds??10);
+    set('min_buy_volume_sol', s.filters?.min_buy_volume_sol??2.0);
+    set('min_unique_buyers', s.filters?.min_unique_buyers??3);
+    set('max_sell_buy_ratio', s.filters?.max_sell_buy_ratio??0.5);
+    // TP/SL
+    set('tp1_pct', s.take_profit?.tp1_pct??50);
+    set('tp1_sell_pct', s.take_profit?.tp1_sell_pct??30);
+    set('tp2_pct', s.take_profit?.tp2_pct??100);
+    set('tp2_sell_pct', s.take_profit?.tp2_sell_pct??40);
+    set('tp3_pct', s.take_profit?.tp3_pct??400);
+    set('tp3_sell_pct', s.take_profit?.tp3_sell_pct??20);
+    set('moon_bag_pct', s.take_profit?.moon_bag_pct??10);
+    set('hard_stop_pct', s.stop_loss?.hard_stop_pct??50);
+    set('time_stop_seconds', s.stop_loss?.time_stop_seconds??300);
+    set('volume_stop_zero_seconds', s.stop_loss?.volume_stop_zero_seconds??60);
+  } catch(e) { toast('Failed to load settings', 'error'); }
+}
+
+function set(id, val) { const el = document.getElementById(id); if(el) el.value = val; }
+function get(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+function getN(id) { return parseFloat(get(id))||0; }
+function getI(id) { return parseInt(get(id))||0; }
+function setCheck(id, val) { const el = document.getElementById(id); if(el) el.checked = val; }
+function getCheck(id) { const el = document.getElementById(id); return el ? el.checked : false; }
+
+async function saveSettings() {
+  const payload = {
+    api_keys: {
+      helius_api_key: get('helius_api_key'),
+    },
+    wallet: { private_key: get('wallet_private_key') },
+    trading: {
+      buy_amount_sol: getN('buy_amount_sol'),
+      slippage_bps: getI('slippage_bps'),
+      max_concurrent_positions: getI('max_concurrent_positions'),
+      daily_loss_limit_sol: getN('daily_loss_limit_sol'),
+      dry_run: getCheck('dry_run'),
+    },
+    sol_price: { cache_ttl_minutes: getI('sol_price_cache_ttl') },
+    filters: {
+      min_market_cap_usd: getN('min_market_cap_usd'),
+      max_market_cap_usd: getN('max_market_cap_usd'),
+      max_bonding_curve_progress_pct: getN('max_bonding_curve_progress_pct'),
+      max_dev_buy_pct: getN('max_dev_buy_pct'),
+      min_description_length: getI('min_description_length'),
+      block_bundled_launches: getCheck('block_bundled_launches'),
+      observation_window_seconds: getI('observation_window_seconds'),
+      min_buy_volume_sol: getN('min_buy_volume_sol'),
+      min_unique_buyers: getI('min_unique_buyers'),
+      max_sell_buy_ratio: getN('max_sell_buy_ratio'),
+      keyword_blocklist: [...keywords],
+    },
+    take_profit: {
+      tp1_pct: getI('tp1_pct'), tp1_sell_pct: getI('tp1_sell_pct'),
+      tp2_pct: getI('tp2_pct'), tp2_sell_pct: getI('tp2_sell_pct'),
+      tp3_pct: getI('tp3_pct'), tp3_sell_pct: getI('tp3_sell_pct'),
+      moon_bag_pct: getI('moon_bag_pct'),
+    },
+    stop_loss: {
+      hard_stop_pct: getI('hard_stop_pct'),
+      time_stop_seconds: getI('time_stop_seconds'),
+      volume_stop_zero_seconds: getI('volume_stop_zero_seconds'),
+    },
+  };
+  try {
+    const r = await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(r=>r.json());
+    r.ok ? toast('Settings saved ✓', 'success') : toast('Save failed: '+r.message,'error');
+  } catch(e) { toast('Save failed: '+e.message,'error'); }
+}
+
+function toast(msg, type='success') {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  document.getElementById('toast-icon').textContent = type==='success' ? '✓' : '✕';
+  t.className = 'toast '+type+' show';
+  setTimeout(()=>{ t.className='toast '+type; }, 3000);
+}
+
+async function pollStatus() {
+  try {
+    const s = await fetch('/api/stats').then(r=>r.json());
+    document.getElementById('ws-dot').className = 'ws-dot'+(s.running?'  on':'');
+  } catch{}
+}
+
+loadSettings();
+pollStatus();
+setInterval(pollStatus, 3000);
+</script>
+</body>
+</html>
