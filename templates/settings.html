@@ -260,6 +260,11 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
           <div class="hint">1000 = 10%. Pump.fun needs 10–15%</div>
         </div>
         <div class="field">
+          <label>Priority Fee (SOL)</label>
+          <input type="number" id="priority_fee_sol" step="0.0001" min="0">
+          <div class="hint">Auto-estimated via Helius. This is the fallback.</div>
+        </div>
+        <div class="field">
           <label>Max Positions</label>
           <input type="number" id="max_concurrent_positions" min="1" max="20">
           <div class="hint">Open at one time</div>
@@ -305,6 +310,11 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
           <div class="hint">% of 1B supply dev bought at creation. >5% = dump risk.</div>
         </div>
         <div class="field">
+          <label>Min Social Score (0–3)</label>
+          <input type="number" id="min_social_score" min="0" max="3">
+          <div class="hint">Twitter + Telegram + Website. 0 = zero socials = filtered.</div>
+        </div>
+        <div class="field">
           <label>Min Description Length</label>
           <input type="number" id="min_description_length" min="0">
           <div class="hint">Ensures token has basic descriptive metadata.</div>
@@ -338,17 +348,17 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
         </div>
         <div class="field">
           <label>Min Buy Volume (SOL)</label>
-          <input type="number" id="min_buy_volume_sol" step="0.1" min="0">
+          <input type="number" id="min_buy_volume_sol_10s" step="0.1" min="0">
           <div class="hint">Total SOL bought in window. Identifies market momentum.</div>
         </div>
         <div class="field">
           <label>Min Unique Buyers</label>
-          <input type="number" id="min_unique_buyers" min="1">
+          <input type="number" id="min_unique_buyers_10s" min="1">
           <div class="hint">Filters out tokens with low organic wallet activity.</div>
         </div>
         <div class="field">
           <label>Max Sell/Buy Ratio</label>
-          <input type="number" id="max_sell_buy_ratio" step="0.05" min="0" max="1">
+          <input type="number" id="max_sell_buy_ratio_10s" step="0.05" min="0" max="1">
           <div class="hint">0.5 = sells can't exceed 50% of buy volume. Dump signal.</div>
         </div>
       </div>
@@ -449,6 +459,7 @@ async function loadSettings() {
     // Trading
     set('buy_amount_sol', s.trading?.buy_amount_sol??0.05);
     set('slippage_bps', s.trading?.slippage_bps??1000);
+    set('priority_fee_sol', s.trading?.priority_fee_sol??0.001);
     set('max_concurrent_positions', s.trading?.max_concurrent_positions??5);
     set('daily_loss_limit_sol', s.trading?.daily_loss_limit_sol??1.0);
     set('sol_price_cache_ttl', s.sol_price?.cache_ttl_minutes??15);
@@ -457,15 +468,16 @@ async function loadSettings() {
     set('max_market_cap_usd', s.filters?.max_market_cap_usd??6000);
     set('max_bonding_curve_progress_pct', s.filters?.max_bonding_curve_progress_pct??15);
     set('max_dev_buy_pct', s.filters?.max_dev_buy_pct??5);
+    set('min_social_score', s.filters?.min_social_score??1);
     set('min_description_length', s.filters?.min_description_length??20);
     setCheck('block_bundled_launches', s.filters?.block_bundled_launches??true);
     keywords = s.filters?.keyword_blocklist||[];
     renderTags();
     // Volume
     set('observation_window_seconds', s.filters?.observation_window_seconds??10);
-    set('min_buy_volume_sol', s.filters?.min_buy_volume_sol??2.0);
-    set('min_unique_buyers', s.filters?.min_unique_buyers??3);
-    set('max_sell_buy_ratio', s.filters?.max_sell_buy_ratio??0.5);
+    set('min_buy_volume_sol_10s', s.filters?.min_buy_volume_sol_10s??2.0);
+    set('min_unique_buyers_10s', s.filters?.min_unique_buyers_10s??3);
+    set('max_sell_buy_ratio_10s', s.filters?.max_sell_buy_ratio_10s??0.5);
     // TP/SL
     set('tp1_pct', s.take_profit?.tp1_pct??50);
     set('tp1_sell_pct', s.take_profit?.tp1_sell_pct??30);
@@ -496,6 +508,7 @@ async function saveSettings() {
     trading: {
       buy_amount_sol: getN('buy_amount_sol'),
       slippage_bps: getI('slippage_bps'),
+      priority_fee_sol: getN('priority_fee_sol'),
       max_concurrent_positions: getI('max_concurrent_positions'),
       daily_loss_limit_sol: getN('daily_loss_limit_sol'),
       dry_run: getCheck('dry_run'),
@@ -506,12 +519,13 @@ async function saveSettings() {
       max_market_cap_usd: getN('max_market_cap_usd'),
       max_bonding_curve_progress_pct: getN('max_bonding_curve_progress_pct'),
       max_dev_buy_pct: getN('max_dev_buy_pct'),
+      min_social_score: getI('min_social_score'),
       min_description_length: getI('min_description_length'),
       block_bundled_launches: getCheck('block_bundled_launches'),
       observation_window_seconds: getI('observation_window_seconds'),
-      min_buy_volume_sol: getN('min_buy_volume_sol'),
-      min_unique_buyers: getI('min_unique_buyers'),
-      max_sell_buy_ratio: getN('max_sell_buy_ratio'),
+      min_buy_volume_sol_10s: getN('min_buy_volume_sol_10s'),
+      min_unique_buyers_10s: getI('min_unique_buyers_10s'),
+      max_sell_buy_ratio_10s: getN('max_sell_buy_ratio_10s'),
       keyword_blocklist: [...keywords],
     },
     take_profit: {

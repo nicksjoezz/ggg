@@ -19,26 +19,24 @@ CURVE_MAX_SOL = 85.0          # graduation threshold
 class FilterEngine:
     def __init__(self, settings: dict, sol_price_service: SolPriceService):
         self.sol_price = sol_price_service
-        self._blacklist: set[str] = set()
+        self._blacklist: set[str] = set()          # dev wallet blacklist (in-memory)
         self._recent_descriptions: set[str] = set()
-        self.settings: dict = {}
         self._update_settings(settings)
 
     def _update_settings(self, settings: dict):
         """Hot-reload settings without restarting."""
-        self.settings = settings
         f = settings.get("filters", {})
         self.min_mcap_usd            = f.get("min_market_cap_usd", 750)
         self.max_mcap_usd            = f.get("max_market_cap_usd", 6000)
         self.max_curve_pct           = f.get("max_bonding_curve_progress_pct", 15)
         self.max_dev_buy_pct         = f.get("max_dev_buy_pct", 5)
         self.block_bundled           = f.get("block_bundled_launches", True)
-        self.min_buy_vol_sol         = f.get("min_buy_volume_sol", 2.0)
-        self.min_unique_buyers       = f.get("min_unique_buyers", 3)
-        self.max_sell_buy_ratio      = f.get("max_sell_buy_ratio", 0.5)
-        self.obs_window_s            = f.get("observation_window_seconds", 30)
+        self.min_buy_vol_sol         = f.get("min_buy_volume_sol_10s", 2.0)
+        self.min_unique_buyers       = f.get("min_unique_buyers_10s", 3)
+        self.max_sell_buy_ratio      = f.get("max_sell_buy_ratio_10s", 0.5)
+        self.obs_window_s            = f.get("observation_window_seconds", 10)
         self.keyword_blocklist       = [kw.lower() for kw in f.get("keyword_blocklist", [])]
-        self.min_desc_len            = f.get("min_description_length", 0)
+        self.min_desc_len            = f.get("min_description_length", 20)
 
     def reload(self, settings: dict):
         self._update_settings(settings)
@@ -127,10 +125,6 @@ class FilterEngine:
         if dev_buy_pct > self.max_dev_buy_pct:
             return False, f"dev bought {dev_buy_pct:.1f}% of supply"
 
-        # T2: bundled launch detection (PumpPortal flags this directly)
-        if self.block_bundled and event.get("isBundled"):
-            return False, "bundled launch blocked"
-
         return True, "all checks passed"
 
     def check_trade_window(self, trades: list[dict]) -> tuple[bool, str]:
@@ -152,30 +146,5 @@ class FilterEngine:
             return False, f"more sells ({len(sells)}) than buys ({len(buys)})"
 
         return True, f"volume OK ({total_buy_sol:.2f} SOL, {unique_buyers} buyers)"
-
-    def check_early_trigger(self, trades: list[dict]) -> tuple[bool, str]:
-        """
-        Check if current mid-window trades already meet the early-buy signal thresholds.
-        Returns (triggered, reason). Called every 0.5s during the observation window.
-        """
-        trig = self.settings.get("early_buy_trigger", {})
-        min_buys     = trig.get("min_buys", 8)
-        min_vol      = trig.get("min_buy_volume_sol", 0.5)
-        min_ub       = trig.get("min_unique_buyers", 3)
-        max_sbr      = trig.get("max_sell_buy_ratio", 0.3)
-
-        buys  = [t for t in trades if t.get("txType") == "buy"]
-        sells = [t for t in trades if t.get("txType") == "sell"]
-
-        buy_vol       = sum(t.get("solAmount", 0) for t in buys)
-        unique_buyers = len(set(t.get("traderPublicKey") for t in buys))
-        sbr           = sum(t.get("solAmount", 0) for t in sells) / buy_vol if buy_vol > 0 else 999
-
-        if (len(buys) >= min_buys
-                and buy_vol >= min_vol
-                and unique_buyers >= min_ub
-                and sbr <= max_sbr):
-            return True, f"{len(buys)} buys, {buy_vol:.3f} SOL, {unique_buyers} buyers"
-        return False, ""
 
 

@@ -253,16 +253,6 @@ class ExitEngine:
             await self._execute_sell(mint, monitor, pct=tp3_sell, reason=f"TP3 +{pct_gain:.0f}%")
             return
 
-        # Moon bag trailing stop — fires after TP3, sells remaining tokens if
-        # price drops more than moon_bag_trailing_stop_pct% from its peak
-        if monitor.tp3_hit and monitor.peak_price_usd > 0:
-            trail_pct = tp.get("moon_bag_trailing_stop_pct", 30)
-            drop_from_peak = ((monitor.peak_price_usd - current_price) / monitor.peak_price_usd) * 100
-            if drop_from_peak >= trail_pct:
-                logger.info(f"MOON BAG TRAIL STOP for {monitor.symbol}: -{drop_from_peak:.1f}% from peak")
-                await self._execute_sell(mint, monitor, pct=100, reason=f"moon bag trail -{drop_from_peak:.0f}% from peak")
-                return
-
     # ── Time / volume stop loop ───────────────────────────────────────────────
 
     async def _time_stop_loop(self):

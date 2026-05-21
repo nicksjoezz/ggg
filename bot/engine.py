@@ -234,34 +234,15 @@ class SniperEngine:
 
         elapsed = time.time() - obs_start
         remaining = max(0.0, obs_s - elapsed)
-        logger.info(f"PASSED: {symbol} ({mint[:8]}...) observing up to {remaining:.1f}s")
+        logger.info(f"PASSED: {symbol} ({mint[:8]}...) observing {remaining:.1f}s remaining")
 
-        # Poll every 0.5s — buy immediately when early signal fires, don't wait for full window
-        poll_deadline = obs_start + obs_s
-        early_triggered = False
-        trigger_reason  = ""
-        while time.time() < poll_deadline:
-            await asyncio.sleep(0.5)
-            current_trades = list(self._pending_observations.get(mint, []))
-            triggered, t_reason = self.filter_engine.check_early_trigger(current_trades)
-            if triggered:
-                early_triggered = True
-                trigger_reason  = t_reason
-                elapsed_s = time.time() - obs_start
-                logger.info(f"EARLY SIGNAL: {symbol} at {elapsed_s:.1f}s — {t_reason}")
-                break
+        if remaining > 0:
+            await asyncio.sleep(remaining)
 
         if obs_task:
             obs_task.cancel()
 
         trades = self._pending_observations.pop(mint, [])
-
-        if early_triggered:
-            bot_state.tokens_passed += 1
-            await self._execute_buy(event, f"early signal: {trigger_reason}")
-            return
-
-        # Full window expired — fall back to end-of-window volume check
         vol_passed, vol_reason = self.filter_engine.check_trade_window(trades)
 
         if not vol_passed:
@@ -276,7 +257,7 @@ class SniperEngine:
             return
 
         bot_state.tokens_passed += 1
-        await self._execute_buy(event, f"window close: {vol_reason}")
+        await self._execute_buy(event, vol_reason)
 
     async def _execute_buy(self, event: dict, reason: str):
         trading  = self.settings["trading"]
