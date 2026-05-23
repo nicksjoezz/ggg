@@ -27,9 +27,12 @@ from bot.engine import engine
 from bot.state import bot_state
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s"
 )
+logging.getLogger("websockets").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("uvicorn").setLevel(logging.WARNING)
 
 BASE_DIR = Path(__file__).parent
 
@@ -119,6 +122,10 @@ async def get_settings():
         s["wallet"]["private_key"] = "••••••••"
     if s.get("api_keys", {}).get("helius_api_key"):
         s["api_keys"]["helius_api_key"] = "••••••••"
+    if s.get("api_keys", {}).get("helius_api_key_2"):
+        s["api_keys"]["helius_api_key_2"] = "••••••••"
+    if s.get("api_keys", {}).get("helius_api_key_3"):
+        s["api_keys"]["helius_api_key_3"] = "••••••••"
     return JSONResponse(s)
 
 
@@ -137,6 +144,10 @@ async def update_settings(request: Request):
     
     if body.get("api_keys", {}).get("helius_api_key") == "••••••••":
         body["api_keys"]["helius_api_key"] = current.get("api_keys", {}).get("helius_api_key", "")
+    if body.get("api_keys", {}).get("helius_api_key_2") == "••••••••":
+        body["api_keys"]["helius_api_key_2"] = current.get("api_keys", {}).get("helius_api_key_2", "")
+    if body.get("api_keys", {}).get("helius_api_key_3") == "••••••••":
+        body["api_keys"]["helius_api_key_3"] = current.get("api_keys", {}).get("helius_api_key_3", "")
 
     # Ensure coingecko_api_key is not written
     body.setdefault("api_keys", {}).pop("coingecko_api_key", None)

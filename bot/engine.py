@@ -1,7 +1,12 @@
 """
 engine.py — Core sniper bot engine.
-Connects to PumpPortal WebSocket (free tier) for new token events.
-Uses Helius logsSubscribe (free) for volume observation and exit monitoring.
+Connects to PumpPortal WebSocket (free tier) for new token creates.
+Uses a persistent Helius logsSubscribe WS for observation-window trade data.
+
+Note on PumpPortal trade subscriptions:
+  PumpPortal's subscribeTokenTrade requires a funded account (>=0.02 SOL).
+  The free tier only supports subscribeNewToken, so Helius logsSubscribe is
+  used for per-token trade observation.
 """
 
 import asyncio
@@ -34,10 +39,16 @@ class SniperEngine:
         self.trader: Optional[HeliusTrader] = None
         self.exit_engine: Optional[ExitEngine] = None
         self._ws: Optional[websockets.WebSocketClientProtocol] = None
-        self._helius_ws_url: str = ""
+        self._helius_ws_urls: list = []
+        self._obs_url_idx: int = 0
         self._running = False
         self._pending_observations: dict[str, list] = {}
         self._last_error: Optional[str] = None
+        # Persistent Helius WS for observation subscriptions
+        self._helius_obs_ws: Optional[websockets.WebSocketClientProtocol] = None
+        self._obs_req_counter: int = 1
+        self._obs_pending_subs: dict[int, str] = {}
+        self._obs_sub_ids: dict[str, int] = {}
 
     def _reload_config(self):
         self.settings = load_settings()
@@ -75,8 +86,17 @@ class SniperEngine:
             logger.error(self._last_error)
             return
 
-        # Helius WebSocket URL — same key, different scheme
-        self._helius_ws_url = rpc_url.replace("https://", "wss://")
+        # Build WS URL list for key rotation across all configured Helius API keys
+        if api_keys.get("helius_rpc_url"):
+            self._helius_ws_urls = [rpc_url.replace("https://", "wss://")]
+        else:
+            _ws_urls = []
+            for _key_name in ("helius_api_key", "helius_api_key_2", "helius_api_key_3"):
+                _k = api_keys.get(_key_name, "").strip()
+                if _k:
+                    _ws_urls.append(f"wss://mainnet.helius-rpc.com/?api-key={_k}")
+            self._helius_ws_urls = _ws_urls or [rpc_url.replace("https://", "wss://")]
+        logger.info(f"Helius key rotation: {len(self._helius_ws_urls)} key(s) configured")
 
         self.sol_price_svc = SolPriceService(
             cache_ttl_minutes=sol_cfg["cache_ttl_minutes"]
@@ -96,7 +116,7 @@ class SniperEngine:
         else:
             self.trader = None
 
-        self.exit_engine = ExitEngine(self.trader, self.settings, helius_ws_url=self._helius_ws_url)
+        self.exit_engine = ExitEngine(self.trader, self.settings, helius_ws_urls=self._helius_ws_urls)
         await self.exit_engine.start()
 
         self._running = True
@@ -105,6 +125,7 @@ class SniperEngine:
         bot_state.started_at = time.time()
 
         logger.info(f"Engine started | dry_run={dry_run}")
+        asyncio.create_task(self._helius_obs_loop())
         await self._connect_loop()
 
     async def stop(self):
@@ -122,7 +143,7 @@ class SniperEngine:
         logger.info("Engine stopped")
 
     async def _connect_loop(self):
-        """Main loop: connects to PumpPortal free tier for new token events only."""
+        """Main PumpPortal loop — subscribes to new token creates."""
         while self._running:
             try:
                 async with websockets.connect(PUMPPORTAL_WS, ping_interval=20, open_timeout=10) as ws:
@@ -137,62 +158,121 @@ class SniperEngine:
                             event = json.loads(raw)
                         except json.JSONDecodeError:
                             continue
-
                         if event.get("txType") == "create":
-                            logger.debug(f"NEW TOKEN EVENT: {json.dumps(event)}")
                             asyncio.create_task(self._handle_new_token(event))
 
             except websockets.exceptions.ConnectionClosed as e:
-                logger.warning(f"WS closed: {e} — reconnecting in 3s")
+                self._ws = None
+                logger.warning(f"PumpPortal WS closed: {e} — reconnecting in 3s")
                 await asyncio.sleep(3)
             except Exception as e:
-                logger.error(f"WS error: {e} — reconnecting in 5s")
+                self._ws = None
+                logger.error(f"PumpPortal WS error: {e} — reconnecting in 5s")
                 await asyncio.sleep(5)
 
-    async def _collect_logs(self, mint: str, bonding_curve: str, window_s: float):
+    # ── Persistent Helius observation WS ─────────────────────────────────────
+
+    async def _helius_obs_loop(self):
         """
-        Open a short-lived Helius logsSubscribe connection for the observation window.
-        Populates _pending_observations[mint] with parsed TradeEvents.
-        Uses the bonding curve PDA as the mention filter — every pump.fun trade
-        on this token goes through the bonding curve account.
+        Maintains one persistent Helius logsSubscribe WS for observation windows.
+        Uses exponential backoff on 429/errors so we don't trigger rate limits.
+        Re-subscribes all active mints after reconnect (same pattern as token_analyzer).
         """
-        deadline = time.time() + window_s
+        delay = 5.0
+        while self._running:
+            try:
+                ws_url = self._helius_ws_urls[self._obs_url_idx % len(self._helius_ws_urls)]
+                self._obs_url_idx += 1
+                async with websockets.connect(
+                    ws_url, ping_interval=20, open_timeout=15
+                ) as ws:
+                    self._helius_obs_ws = ws
+                    self._obs_sub_ids.clear()
+                    self._obs_pending_subs.clear()
+                    delay = 5.0  # reset backoff on successful connect
+                    # Re-subscribe any in-flight observation mints
+                    for mint in list(self._pending_observations.keys()):
+                        try:
+                            from solders.pubkey import Pubkey as _Pubkey
+                            bc = str(get_bonding_curve_pda(_Pubkey.from_string(mint)))
+                            await self._obs_subscribe(mint, bc)
+                        except Exception:
+                            pass
+                    key_slot = ((self._obs_url_idx - 1) % len(self._helius_ws_urls)) + 1
+                    logger.info(f"Helius observation WS connected (key {key_slot}/{len(self._helius_ws_urls)})")
+
+                    async for raw in ws:
+                        if not self._running:
+                            break
+                        try:
+                            msg = json.loads(raw)
+                        except json.JSONDecodeError:
+                            continue
+
+                        # Subscription confirmation
+                        if "result" in msg and isinstance(msg.get("result"), int):
+                            pending_mint = self._obs_pending_subs.pop(msg.get("id"), None)
+                            if pending_mint:
+                                self._obs_sub_ids[pending_mint] = msg["result"]
+                            continue
+
+                        if msg.get("method") != "logsNotification":
+                            continue
+
+                        val = msg["params"]["result"]["value"]
+                        if val.get("err"):
+                            continue
+
+                        trade = parse_trade_event(val.get("logs", []))
+                        if trade and trade["mint"] in self._pending_observations:
+                            self._pending_observations[trade["mint"]].append(trade)
+
+            except asyncio.CancelledError:
+                return
+            except Exception as e:
+                self._helius_obs_ws = None
+                if not self._running:
+                    return
+                err_str = str(e)
+                if "429" in err_str:
+                    # Rate limited — back off significantly, don't hammer the API
+                    delay = min(delay * 2, 120.0)
+                    logger.warning(f"Helius obs WS rate limited (429) — backing off {delay:.0f}s")
+                else:
+                    logger.warning(f"Helius obs WS error: {e} — retrying in {delay:.0f}s")
+                await asyncio.sleep(delay)
+
+    async def _obs_subscribe(self, mint: str, bonding_curve: str):
+        ws = self._helius_obs_ws
+        if not ws:
+            return
+        req_id = self._obs_req_counter
+        self._obs_req_counter += 1
+        self._obs_pending_subs[req_id] = mint
         try:
-            async with websockets.connect(self._helius_ws_url, open_timeout=5) as ws:
-                await ws.send(json.dumps({
-                    "jsonrpc": "2.0", "id": 1,
-                    "method": "logsSubscribe",
-                    "params": [
-                        {"mentions": [bonding_curve]},
-                        {"commitment": "processed"}
-                    ]
-                }))
-
-                while time.time() < deadline:
-                    remaining = deadline - time.time()
-                    if remaining <= 0:
-                        break
-                    try:
-                        raw = await asyncio.wait_for(ws.recv(), timeout=remaining)
-                    except asyncio.TimeoutError:
-                        break
-                    try:
-                        msg = json.loads(raw)
-                    except json.JSONDecodeError:
-                        continue
-
-                    if msg.get("method") != "logsNotification":
-                        continue
-
-                    logs = msg["params"]["result"]["value"]["logs"]
-                    trade = parse_trade_event(logs)
-                    if trade and trade["mint"] == mint and mint in self._pending_observations:
-                        self._pending_observations[mint].append(trade)
-
-        except asyncio.CancelledError:
-            raise
+            await ws.send(json.dumps({
+                "jsonrpc": "2.0", "id": req_id,
+                "method": "logsSubscribe",
+                "params": [{"mentions": [bonding_curve]}, {"commitment": "processed"}]
+            }))
         except Exception as e:
-            logger.warning(f"logsSubscribe observation failed for {mint[:8]}: {e}")
+            self._obs_pending_subs.pop(req_id, None)
+            logger.warning(f"obs subscribe failed for {mint[:8]}: {e}")
+
+    async def _obs_unsubscribe(self, mint: str):
+        sub_id = self._obs_sub_ids.pop(mint, None)
+        ws = self._helius_obs_ws
+        if sub_id is not None and ws:
+            try:
+                req_id = self._obs_req_counter
+                self._obs_req_counter += 1
+                await ws.send(json.dumps({
+                    "jsonrpc": "2.0", "id": req_id,
+                    "method": "logsUnsubscribe",
+                    "params": [sub_id]
+                }))
+            except Exception:
+                pass
 
     async def _handle_new_token(self, event: dict):
         bot_state.tokens_seen += 1
@@ -200,18 +280,17 @@ class SniperEngine:
         name   = event.get("name", "?")
         symbol = event.get("symbol", "?")
 
-        # Start log collection immediately so the full window captures early trades
-        obs_s = self.settings["filters"]["observation_window_seconds"]
-        self._pending_observations[mint] = []
+        obs_s     = self.settings["filters"]["observation_window_seconds"]
         obs_start = time.time()
-        obs_task = None
 
+        # Register slot before subscribing so no trades are dropped
+        self._pending_observations[mint] = []
         try:
-            from solders.pubkey import Pubkey
-            bc_pda = str(get_bonding_curve_pda(Pubkey.from_string(mint)))
-            obs_task = asyncio.create_task(self._collect_logs(mint, bc_pda, obs_s))
-        except Exception as e:
-            logger.warning(f"Could not start log observation for {mint[:8]}: {e}")
+            from solders.pubkey import Pubkey as _Pubkey
+            _bc_pda = str(get_bonding_curve_pda(_Pubkey.from_string(mint)))
+        except Exception:
+            _bc_pda = ""
+        await self._obs_subscribe(mint, _bc_pda)
 
         price = await self.sol_price_svc.get_price()
         if price:
@@ -220,9 +299,8 @@ class SniperEngine:
         passed, reason = await self.filter_engine.check_create_event(event)
 
         if not passed:
-            if obs_task:
-                obs_task.cancel()
             self._pending_observations.pop(mint, None)
+            await self._obs_unsubscribe(mint)
             bot_state.log_rejection(reason)
             bot_state.log_trade(TradeLog(
                 timestamp=time.time(), mint=mint, name=name, symbol=symbol,
@@ -232,17 +310,38 @@ class SniperEngine:
             logger.debug(f"REJECTED {symbol}: {reason}")
             return
 
-        elapsed = time.time() - obs_start
+        elapsed   = time.time() - obs_start
         remaining = max(0.0, obs_s - elapsed)
-        logger.info(f"PASSED: {symbol} ({mint[:8]}...) observing {remaining:.1f}s remaining")
+        logger.info(f"PASSED: {symbol} ({mint[:8]}...) observing up to {remaining:.1f}s")
 
-        if remaining > 0:
-            await asyncio.sleep(remaining)
-
-        if obs_task:
-            obs_task.cancel()
+        # Poll every 0.5s — buy immediately on early signal, don't wait for full window
+        poll_deadline   = obs_start + obs_s
+        early_triggered = False
+        trigger_reason  = ""
+        while time.time() < poll_deadline:
+            await asyncio.sleep(0.5)
+            current_trades = list(self._pending_observations.get(mint, []))
+            triggered, t_reason = self.filter_engine.check_early_trigger(current_trades)
+            if triggered:
+                early_triggered = True
+                trigger_reason  = t_reason
+                elapsed_s = time.time() - obs_start
+                logger.info(f"EARLY SIGNAL: {symbol} at {elapsed_s:.1f}s — {t_reason}")
+                break
 
         trades = self._pending_observations.pop(mint, [])
+        await self._obs_unsubscribe(mint)
+
+        if not trades:
+            logger.warning(f"OBS ZERO TRADES: {symbol} ({mint[:8]}...) — "
+                           f"helius_obs_ws={'connected' if self._helius_obs_ws else 'DISCONNECTED'}")
+
+        if early_triggered:
+            bot_state.tokens_passed += 1
+            await self._execute_buy(event, f"early signal: {trigger_reason}")
+            return
+
+        # Full window expired — fall back to end-of-window volume check
         vol_passed, vol_reason = self.filter_engine.check_trade_window(trades)
 
         if not vol_passed:
@@ -257,7 +356,7 @@ class SniperEngine:
             return
 
         bot_state.tokens_passed += 1
-        await self._execute_buy(event, vol_reason)
+        await self._execute_buy(event, f"window close: {vol_reason}")
 
     async def _execute_buy(self, event: dict, reason: str):
         trading  = self.settings["trading"]
@@ -280,7 +379,6 @@ class SniperEngine:
             return
 
         entry_price = (mcap_sol * sol_usd) / 1_000_000_000 if mcap_sol and sol_usd else 0
-        # tokens = buy_usd / price_per_token_usd, converted to raw units (6 decimals)
         tokens_raw  = int((buy_sol * sol_usd / entry_price) * 10**TOKEN_DECIMALS) if entry_price > 0 and sol_usd else 0
         tx_sig      = "dry_run"
 

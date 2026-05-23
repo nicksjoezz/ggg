@@ -47,10 +47,11 @@ class ExitEngine:
     Parses pump.fun TradeEvents to track price and trigger exits.
     """
 
-    def __init__(self, trader, settings: dict, helius_ws_url: str = ""):
+    def __init__(self, trader, settings: dict, helius_ws_url: str = "", helius_ws_urls: list = None):
         self.trader = trader
         self.settings = settings
-        self._ws_url = helius_ws_url
+        self._ws_urls: list = helius_ws_urls or ([helius_ws_url] if helius_ws_url else [])
+        self._ws_url_idx: int = 0
         self._monitors: dict[str, PositionMonitor] = {}
         self._ws: Optional[websockets.WebSocketClientProtocol] = None
         self._running = False
@@ -107,13 +108,21 @@ class ExitEngine:
     # ── WebSocket loop ────────────────────────────────────────────────────────
 
     async def _ws_loop(self):
+        delay = 5.0
         while self._running:
+            if not self._ws_urls:
+                await asyncio.sleep(5)
+                continue
+            ws_url = self._ws_urls[self._ws_url_idx % len(self._ws_urls)]
+            self._ws_url_idx += 1
             try:
-                async with websockets.connect(self._ws_url, ping_interval=20) as ws:
+                async with websockets.connect(ws_url, ping_interval=20) as ws:
                     self._ws = ws
                     self._sub_ids.clear()
                     self._pending_subs.clear()
-                    logger.info("Exit engine connected to Helius WS")
+                    delay = 5.0
+                    key_slot = ((self._ws_url_idx - 1) % len(self._ws_urls)) + 1
+                    logger.info(f"Exit engine connected to Helius WS (key {key_slot}/{len(self._ws_urls)})")
 
                     # Re-subscribe all active monitors on reconnect
                     for mint in list(self._monitors.keys()):
@@ -143,11 +152,20 @@ class ExitEngine:
                             await self._handle_price_update(trade["mint"], trade)
 
             except websockets.exceptions.ConnectionClosed:
+                self._ws = None
                 logger.warning("Exit engine WS closed — reconnecting in 3s")
                 await asyncio.sleep(3)
             except Exception as e:
-                logger.error(f"Exit engine WS error: {e} — reconnecting in 5s")
-                await asyncio.sleep(5)
+                self._ws = None
+                if not self._running:
+                    return
+                err_str = str(e)
+                if "429" in err_str:
+                    delay = min(delay * 2, 120.0)
+                    logger.warning(f"Exit engine WS rate limited (429) — backing off {delay:.0f}s (key rotated)")
+                else:
+                    logger.error(f"Exit engine WS error: {e} — retrying in {delay:.0f}s")
+                await asyncio.sleep(delay)
 
     async def _do_subscribe(self, ws, mint: str):
         monitor = self._monitors.get(mint)
@@ -252,6 +270,16 @@ class ExitEngine:
             logger.info(f"TP3 hit for {monitor.symbol}: +{pct_gain:.1f}%")
             await self._execute_sell(mint, monitor, pct=tp3_sell, reason=f"TP3 +{pct_gain:.0f}%")
             return
+
+        # Moon bag trailing stop — fires after TP3, sells remaining tokens if
+        # price drops more than moon_bag_trailing_stop_pct% from its peak
+        if monitor.tp3_hit and monitor.peak_price_usd > 0:
+            trail_pct = tp.get("moon_bag_trailing_stop_pct", 30)
+            drop_from_peak = ((monitor.peak_price_usd - current_price) / monitor.peak_price_usd) * 100
+            if drop_from_peak >= trail_pct:
+                logger.info(f"MOON BAG TRAIL STOP for {monitor.symbol}: -{drop_from_peak:.1f}% from peak")
+                await self._execute_sell(mint, monitor, pct=100, reason=f"moon bag trail -{drop_from_peak:.0f}% from peak")
+                return
 
     # ── Time / volume stop loop ───────────────────────────────────────────────
 
