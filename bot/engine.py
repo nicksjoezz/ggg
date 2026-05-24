@@ -336,21 +336,31 @@ class SniperEngine:
             logger.warning(f"OBS ZERO TRADES: {symbol} ({mint[:8]}...) — "
                            f"helius_obs_ws={'connected' if self._helius_obs_ws else 'DISCONNECTED'}")
 
-        if not early_triggered:
-            # Window expired with no signal — discard
+        # Use the latest observed trade's mcap as entry price — much closer to actual fill
+        # than the CREATE event's genesis mcap (which is stale by 1–30s)
+        latest_mcap_sol = trades[-1].get("marketCapSol", 0) if trades else 0
+
+        if early_triggered:
+            bot_state.tokens_passed += 1
+            await self._execute_buy(event, f"early signal: {trigger_reason}", current_mcap_sol=latest_mcap_sol)
+            return
+
+        # Full window expired — fall back to end-of-window volume check
+        vol_passed, vol_reason = self.filter_engine.check_trade_window(trades)
+
+        if not vol_passed:
             bot_state.tokens_rejected += 1
-            bot_state.log_rejection("no entry signal in observation window")
+            bot_state.log_rejection(vol_reason)
             bot_state.log_trade(TradeLog(
                 timestamp=time.time(), mint=mint, name=name, symbol=symbol,
                 action="filter_fail", sol_amount=0, usd_amount=0,
-                reason="no entry signal in observation window", dry_run=bot_state.dry_run
+                reason=vol_reason, dry_run=bot_state.dry_run
             ))
-            logger.info(f"DISCARDED (window expired): {symbol}")
+            logger.info(f"REJECTED (volume): {symbol}: {vol_reason}")
             return
 
         bot_state.tokens_passed += 1
-        _last_mcap = current_trades[-1].get("marketCapSol", 0) if current_trades else 0
-        await self._execute_buy(event, f"signal: {trigger_reason}", current_mcap_sol=_last_mcap)
+        await self._execute_buy(event, f"window close: {vol_reason}", current_mcap_sol=latest_mcap_sol)
 
     async def _execute_buy(self, event: dict, reason: str, current_mcap_sol: float = 0):
         trading  = self.settings["trading"]
@@ -360,9 +370,6 @@ class SniperEngine:
         mint     = event.get("mint", "")
         name     = event.get("name", "?")
         symbol   = event.get("symbol", "?")
-        # Prefer current_mcap_sol (from last observed trade) over create-event mcap —
-        # the create event price can be stale by 10-30s by the time the buy fires
-        mcap_sol = current_mcap_sol or event.get("marketCapSol", 0)
         sol_usd  = bot_state.sol_price_usd or 0
         buy_usd  = buy_sol * sol_usd
 
@@ -374,22 +381,10 @@ class SniperEngine:
             logger.warning("Daily loss limit — circuit breaker active")
             return
 
-        # Max price move guard — skip if token already pumped too far from launch price
-        launch_mcap_sol = event.get("marketCapSol", 0)
-        max_move_pct = self.settings.get("early_buy_trigger", {}).get("max_price_move_pct", 0)
-        if max_move_pct > 0 and launch_mcap_sol > 0 and mcap_sol > launch_mcap_sol:
-            move_pct = (mcap_sol / launch_mcap_sol - 1) * 100
-            if move_pct > max_move_pct:
-                bot_state.tokens_rejected += 1
-                bot_state.log_rejection(f"price already +{move_pct:.0f}% from launch (max {max_move_pct:.0f}%)")
-                bot_state.log_trade(TradeLog(
-                    timestamp=time.time(), mint=mint, name=name, symbol=symbol,
-                    action="filter_fail", sol_amount=0, usd_amount=0,
-                    reason=f"price already +{move_pct:.0f}% from launch", dry_run=dry_run
-                ))
-                logger.info(f"SKIPPED {symbol}: price +{move_pct:.0f}% from launch (max {max_move_pct:.0f}%)")
-                return
-
+        # Use the latest observed mcap (at buy time) rather than genesis mcap from the
+        # CREATE event — TP/SL must be measured from actual entry price, not launch price.
+        # Fall back to the create event's mcap only if no trade data is available.
+        mcap_sol    = current_mcap_sol or event.get("marketCapSol", 0)
         entry_price = (mcap_sol * sol_usd) / 1_000_000_000 if mcap_sol and sol_usd else 0
         tokens_raw  = int((buy_sol * sol_usd / entry_price) * 10**TOKEN_DECIMALS) if entry_price > 0 and sol_usd else 0
         tx_sig      = "dry_run"
@@ -404,9 +399,8 @@ class SniperEngine:
             actual = await self.trader.get_token_balance(mint)
             if actual > 0:
                 tokens_raw = actual
-                # Recompute entry price from actual tokens received — true cost basis
-                # accounts for price drift during obs window and slippage
-                if sol_usd and actual > 0:
+                # Derive true average fill price from actual tokens received
+                if sol_usd > 0:
                     entry_price = (buy_sol * sol_usd) / (actual / 10**TOKEN_DECIMALS)
             logger.info(f"BUY OK: {tx_sig[:20]}... | entry=${entry_price:.8f}")
         else:

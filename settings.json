@@ -21,12 +21,12 @@
     "min_market_cap_usd": 750,
     "max_market_cap_usd": 15000,
     "max_bonding_curve_progress_pct": 15,
-    "max_dev_buy_pct": 9.5,
+    "max_dev_buy_pct": 15,
     "min_description_length": 0,
     "block_bundled_launches": true,
-    "observation_window_seconds": 10,
-    "min_buy_volume_sol": 5.853,
-    "min_unique_buyers": 28,
+    "observation_window_seconds": 30,
+    "min_buy_volume_sol": 1.0,
+    "min_unique_buyers": 5,
     "max_sell_buy_ratio": 0.8,
     "keyword_blocklist": [
       "elon",
@@ -58,9 +58,8 @@
   },
   "early_buy_trigger": {
     "min_buys": 5,
-    "min_buy_volume_sol": 5.853,
-    "min_unique_buyers": 28,
-    "max_sell_buy_ratio": 0.7,
-    "max_price_move_pct": 50
+    "min_buy_volume_sol": 1.0,
+    "min_unique_buyers": 5,
+    "max_sell_buy_ratio": 0.6
   }
 }
