@@ -364,6 +364,41 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
       </div>
     </div>
 
+    <!-- Early Buy Trigger -->
+    <div class="settings-section" id="sec-trigger">
+      <div class="section-head">
+        <div class="section-title">Early Buy Trigger</div>
+        <div class="section-desc">Conditions that must be met within the observation window to trigger a buy. Signal fires as soon as all thresholds are hit — no waiting for the window to end.</div>
+      </div>
+      <div class="field-grid one">
+        <div class="field">
+          <label>Min Buy Transactions</label>
+          <input type="number" id="early_min_buys" min="1">
+          <div class="hint">Minimum number of individual buy transactions required (not just volume).</div>
+        </div>
+        <div class="field">
+          <label>Min Buy Volume (SOL)</label>
+          <input type="number" id="early_min_buy_volume_sol" step="0.1" min="0">
+          <div class="hint">Total SOL volume from buys needed to trigger entry.</div>
+        </div>
+        <div class="field">
+          <label>Min Unique Buyers</label>
+          <input type="number" id="early_min_unique_buyers" min="1">
+          <div class="hint">Minimum distinct wallets buying — filters coordinated single-wallet pumps.</div>
+        </div>
+        <div class="field">
+          <label>Max Sell/Buy Ratio</label>
+          <input type="number" id="early_max_sell_buy_ratio" step="0.05" min="0" max="1">
+          <div class="hint">Block if sells are already eroding buys before entry.</div>
+        </div>
+        <div class="field">
+          <label>Max Price Move from Launch (%)</label>
+          <input type="number" id="early_max_price_move_pct" min="0" step="10">
+          <div class="hint">Skip buy if price already moved more than X% from launch. 0 = disabled. Recommended: 150–300%. Prevents buying late into already-pumped tokens.</div>
+        </div>
+      </div>
+    </div>
+
     <!-- TP/SL -->
     <div class="settings-section" id="sec-exits">
       <div class="section-head">
@@ -478,6 +513,12 @@ async function loadSettings() {
     set('min_buy_volume_sol', s.filters?.min_buy_volume_sol??2.0);
     set('min_unique_buyers', s.filters?.min_unique_buyers??3);
     set('max_sell_buy_ratio', s.filters?.max_sell_buy_ratio??0.5);
+    // Early Buy Trigger
+    set('early_min_buys', s.early_buy_trigger?.min_buys??5);
+    set('early_min_buy_volume_sol', s.early_buy_trigger?.min_buy_volume_sol??1.0);
+    set('early_min_unique_buyers', s.early_buy_trigger?.min_unique_buyers??5);
+    set('early_max_sell_buy_ratio', s.early_buy_trigger?.max_sell_buy_ratio??0.6);
+    set('early_max_price_move_pct', s.early_buy_trigger?.max_price_move_pct??200);
     // TP/SL
     set('tp1_pct', s.take_profit?.tp1_pct??50);
     set('tp1_sell_pct', s.take_profit?.tp1_sell_pct??30);
@@ -527,6 +568,13 @@ async function saveSettings() {
       min_unique_buyers: getI('min_unique_buyers'),
       max_sell_buy_ratio: getN('max_sell_buy_ratio'),
       keyword_blocklist: [...keywords],
+    },
+    early_buy_trigger: {
+      min_buys: getI('early_min_buys'),
+      min_buy_volume_sol: getN('early_min_buy_volume_sol'),
+      min_unique_buyers: getI('early_min_unique_buyers'),
+      max_sell_buy_ratio: getN('early_max_sell_buy_ratio'),
+      max_price_move_pct: getN('early_max_price_move_pct'),
     },
     take_profit: {
       tp1_pct: getI('tp1_pct'), tp1_sell_pct: getI('tp1_sell_pct'),
