@@ -24,7 +24,7 @@
     "max_dev_buy_pct": 15,
     "min_description_length": 0,
     "block_bundled_launches": true,
-    "observation_window_seconds": 30,
+    "observation_window_seconds": 15,
     "min_buy_volume_sol": 1.0,
     "min_unique_buyers": 5,
     "max_sell_buy_ratio": 0.8,
